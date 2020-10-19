@@ -1,0 +1,106 @@
+/*****************************************************
+Project :soft starter 
+Version :01 
+Date    :90/02/02
+Author  : 
+Chip type           : ATtiny26
+Clock frequency     : 4.000000 MHz
+Memory model        : Tiny
+External RAM size   : 0
+Data Stack size     : 32
+*****************************************************/
+#include <tiny26.h>
+#include <stdlib.h> 
+#include <delay.h> 
+#include <softstarter.h>
+
+#define falt PINA.1
+#define outph1 PINA.2
+#define outph2 PINA.3
+#define opph1 PINA.4
+#define ph3 PINA.5
+#define ph2 PINA.6
+#define ph1 PINA.7
+
+#define outph3 PINB.1
+#define opph3 PINB.4
+#define on PINB.5
+#define opph2 PINB.7
+
+interrupt [EXT_INT0] void ext_int0_isr(void)
+{
+  if (outph1==1)
+    coutt0=(adcsum/6.6),TCNT0=(255-coutt0); 
+  if (outph2==1)
+    coutt1=(adcsum/13.1),TCNT1=(255-coutt1); 
+  if (runph3==1)
+    m1=1;
+  if ((m1==1)&&(runph3==1))
+     m1=0,runph3=0,TCNT0=(255-coutt0);   
+}
+
+interrupt [TIM0_OVF] void timer0_ovf_isr(void)
+{
+  runph3=1;
+
+  TCNT0=0x00;
+}
+
+interrupt [TIM1_OVF] void timer1_ovf_isr(void)
+{
+
+
+  TCNT1=0x00;
+}
+
+#define FIRST_ADC_INPUT 0
+#define LAST_ADC_INPUT 0
+unsigned int adc_data[LAST_ADC_INPUT-FIRST_ADC_INPUT+1];
+#define ADC_VREF_TYPE 0x00
+
+interrupt [ADC_INT] void adc_isr(void)
+{
+static unsigned char input_index=0;
+adc_data[input_index]=ADCW;
+if (++input_index > (LAST_ADC_INPUT-FIRST_ADC_INPUT))
+   input_index=0;
+ADMUX=(FIRST_ADC_INPUT | (ADC_VREF_TYPE & 0xff))+input_index;
+adcsum=adc_data[0];
+delay_us(10);
+ADCSR|=0x40;
+}
+
+void main(void)
+{
+PORTA=0x00,DDRA=0x0E;
+
+PORTB=0x00,DDRB=0x02;
+
+// Timer/Counter 0 initialization   // Clock source: System Clock   // Clock value: 15.625 kHz
+TCCR0=0x04,TCNT0=0x00;
+
+// Clock value: 7.813 kHz    // Timer 1 Overflow Interrupt: On
+PLLCSR=0x00,TCCR1A=0x00,TCCR1B=0x0A,TCNT1=0x00,OCR1A=0x00,OCR1B=0x00,OCR1C=0x00;
+
+// External Interrupt(s) initialization      // INT0: On    // INT0 Mode: Any change
+GIMSK=0x40,MCUCR=0x01,GIFR=0x40;
+
+// Timer(s)/Counter(s) Interrupt(s) initialization
+TIMSK=0x06;
+
+// Universal Serial Interface initialization    // Mode: Disabled
+USICR=0x00;
+
+// Analog Comparator initialization    // Analog Comparator: Off
+ACSR=0x80;
+
+// ADC initialization    // ADC Clock frequency: 125.000 kHz  // ADC Voltage Reference: AVCC pin
+ADMUX=FIRST_ADC_INPUT | (ADC_VREF_TYPE & 0xff),ADCSR=0xCD;
+
+#asm("sei")
+
+while (1)
+      {
+     
+      };
+}
